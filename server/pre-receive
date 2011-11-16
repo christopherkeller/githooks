@@ -7,7 +7,7 @@
 THRESHOLD=800
 
 # I really need to put this somewhere else, like /etc
-PYLINTRC=/home/cnkeller/configurations/pylint/pylintrc
+PYLINTRC=/etc/pylint/pylintrc
 
 # create temp directory for code checks
 TEMPDIR="$$"
