@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+# Run code checks on commit
+# Created by Christopher Keller on 2011-11-15
+
+# Score threshold (out of 100) for code to be accepted
+THRESHOLD=800
+
+# I really need to put this somewhere else, like /etc
+PYLINTRC=/home/cnkeller/configurations/pylint/pylintrc
+
+# create temp directory for code checks
+TEMPDIR="$$"
+/bin/mkdir /tmp/$TEMPDIR
+
+pythonCheck () {
+    local TEMPDIR=$2
+    local FILES=$3
+    local NEWREV=$1
+    
+    echo -e "running analysis on $FILES\n"
+    /usr/bin/pylint --rcfile=$PYLINTRC $TEMPDIR/$FILES >& $TEMPDIR/pylint
+    score=`/bin/grep "Your code has been rated" $TEMPDIR/pylint | /usr/bin/cut -d" " -f7`
+
+    if [ `echo "scale=3; $score * 1000 > $THRESHOLD" | /usr/bin/bc` -gt 0 ]; then
+        echo -e "\n$NEWREV score of $score - push accepted."
+        rc=0
+    else
+        /bin/egrep '[A-Z0-9]{5}:' $TEMPDIR/pylint | /usr/bin/sort
+        rc=1
+    fi 
+
+    if [[ $rc != 0 ]] ; then
+        # A non-zero return code means an error occurred, so tell the user and exit
+        echo -e "\npylint failed on rev $NEWREV with a score of $score - push denied."
+        /bin/rm -rf $TEMPDIR && exit $rc
+    fi   
+}
+
+while read oldrev newrev refname
+do
+    if [[ $refname = "refs/heads/master" ]]; then
+        /usr/bin/git archive --format=tar --prefix=$TEMPDIR/ $newrev | (cd /tmp/ && tar xf -)
+
+        for FILES in `/usr/bin/git diff --name-only $oldrev $newrev`; do
+            if [[ $FILES == *.py ]]; then
+                    pythonCheck $newrev /tmp/$TEMPDIR $FILES
+            fi
+        done
+    fi
+done
+
+# Clean up and done
+/bin/rm -rf $TEMPDIR && exit 0
